@@ -1,0 +1,50 @@
+version: "3.4"
+
+services:
+  oss-server:
+    image: ${OSS_IMAGE:-oss-server:latest}
+    build:
+      context: ..
+      dockerfile: dist/Dockerfile
+      args:
+        CARGO_FEATURES: ${CARGO_FEATURES:-}
+    container_name: ${OSS_CONTAINER_NAME:-oss-server}
+    restart: unless-stopped
+    ports:
+      # Host port (OSS_PORT) -> container port 8080.
+      - "${OSS_PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      # Fixed inside the container so the healthcheck always works.
+      OSS_HOST: 0.0.0.0:8080
+      OSS_DATA_DIR: /data
+      OSS_DB_URL: ${OSS_DB_URL:-redb:///data/oss.db}
+    volumes:
+      # Host-visible data directory: object files + redb metadata.
+      - ${OSS_DATA_HOST_DIR:-./data}:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+# Optional built-in MySQL. To use it:
+#   1) uncomment the service below
+#   2) set OSS_STORAGE_BACKEND=mysql and
+#      OSS_DB_URL=mysql://oss:password@mysql:3306/oss
+#   3) build the image with CARGO_FEATURES=mysql
+#
+#  mysql:
+#    image: mysql:8.0
+#    container_name: oss-mysql
+#    restart: unless-stopped
+#    environment:
+#      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+#      MYSQL_DATABASE: ${MYSQL_DATABASE:-oss}
+#      MYSQL_USER: ${MYSQL_USER:-oss}
+#      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password}
+#    volumes:
+#      - ${OSS_MYSQL_HOST_DIR:-./mysql-data}:/var/lib/mysql
+#    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_bin"]

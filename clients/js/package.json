@@ -1,0 +1,55 @@
+{
+  "name": "oss-s3-client",
+  "version": "0.1.0",
+  "description": "Official JavaScript client for OSS Server (S3-compatible API, SigV4, zero dependencies)",
+  "main": "index.js",
+  "module": "index.mjs",
+  "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./index.mjs",
+      "require": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.mjs",
+    "lib",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14.17"
+  },
+  "scripts": {
+    "build": "node scripts/check.js",
+    "test": "node scripts/run-tests.js test/unit && node scripts/run-tests.js test/integration",
+    "test:unit": "node scripts/run-tests.js test/unit",
+    "test:integration": "node scripts/run-tests.js test/integration"
+  },
+  "keywords": [
+    "oss",
+    "s3",
+    "object-storage",
+    "sigv4",
+    "presigned-url"
+  ],
+  "license": "MIT",
+  "author": "OSS Server Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pddon/easy-oss-server.git",
+    "directory": "clients/js"
+  },
+  "homepage": "https://github.com/pddon/easy-oss-server/tree/main/clients/js#readme",
+  "bugs": {
+    "url": "https://github.com/pddon/easy-oss-server/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

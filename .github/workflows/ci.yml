@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Server / clippy + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --all-targets
+
+  server-mysql:
+    name: Server / MySQL integration
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: oss_server_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mysql
+      # 测试库地址固定使用 CI service 容器 127.0.0.1，不依赖任何外部开发机。
+      - name: MySQL 集成测试
+        env:
+          OSS_MYSQL_TEST_URL: mysql://root:root@127.0.0.1:3306/oss_server_test
+        run: cargo test --features mysql --test test_mysql_store
+
+  rust-client:
+    name: Client / Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: rust-client
+      # 集成测试在缺少 OSS_TEST_* 环境变量时会自动 SKIP。
+      - name: Test
+        run: cargo test --manifest-path clients/rust/Cargo.toml
+
+  java-client:
+    name: Client / Java
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+          cache: maven
+      # S3IntegrationTest 未设置 OSS_IT_ENDPOINT 时通过 Assume 跳过。
+      - name: Test
+        run: mvn -B test
+        working-directory: clients/java
+
+  js-client:
+    name: Client / JavaScript
+    # JS 集成测试会构建并启动服务端；测试脚本按 Windows .exe 约定查找二进制。
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+          cache-dependency-path: clients/js/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install
+        run: npm ci
+        working-directory: clients/js
+      - name: Test
+        run: npm test
+        working-directory: clients/js
+
+  ts-client:
+    name: Client / TypeScript
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+          cache-dependency-path: clients/typescript/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install
+        run: npm ci
+        working-directory: clients/typescript
+      - name: Test
+        run: npm test
+        working-directory: clients/typescript
+
+  python-client:
+    name: Client / Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: dtolnay/rust-toolchain@stable
+      # 集成测试会通过 cargo 构建并启动服务端（内部使用临时端口与临时目录）。
+      - name: Test
+        run: python -m unittest discover -s tests -v
+        working-directory: clients/python

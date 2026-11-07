@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  oss-server:
+    build: .
+    container_name: oss-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - OSS_HOST=0.0.0.0:8080
+      - OSS_DATA_DIR=/data
+      - OSS_STORAGE_BACKEND=redb
+      - OSS_DB_URL=redb:///data/oss.db
+      - OSS_ADMIN_TOKEN=${OSS_ADMIN_TOKEN:?请先设置 OSS_ADMIN_TOKEN，例如 export OSS_ADMIN_TOKEN=your-secret-token}
+      - OSS_PUBLIC_BASE_URL=${OSS_PUBLIC_BASE_URL:-http://localhost:8080}
+      - OSS_SIGNATURE_EXPIRE_SECONDS=900
+      - OSS_MAX_UPLOAD_SIZE=10737418240
+      - OSS_CACHE_SIZE_BYTES=67108864
+      - OSS_MASTER_KEY=${OSS_MASTER_KEY:-}
+      - RUST_LOG=info
+    volumes:
+      - oss-data:/data
+
+volumes:
+  oss-data:

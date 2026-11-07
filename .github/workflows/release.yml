@@ -1,0 +1,143 @@
+name: Release
+
+# 默认不会自动发布：
+# - 手动触发（workflow_dispatch）时，只有 publish=true 才真正上传，否则全部走 dry-run。
+# - 只有仓库变量 PUBLISH_ENABLED=true 时，推 v* tag 才会执行（仍走脚本的 --execute）。
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 要发布的包
+        type: choice
+        default: all
+        options: [all, rust, java, npm-js, npm-ts, python, docker, github]
+      publish:
+        description: 真正发布（关闭时只做 dry-run）
+        type: boolean
+        default: false
+      version:
+        description: 发布版本（留空则使用清单中的版本）
+        type: string
+        default: ''
+      pypi_target:
+        description: PyPI 目标
+        type: choice
+        default: testpypi
+        options: [testpypi, pypi]
+      maven_target:
+        description: Maven 目标
+        type: choice
+        default: github-packages
+        options: [github-packages, central]
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package / ${{ matrix.target }}
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'push' && vars.PUBLISH_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [rust, java, npm-js, npm-ts, python, docker]
+    env:
+      PUBLISH: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name == 'push' && vars.PUBLISH_ENABLED == 'true') }}
+      VERSION: ${{ inputs.version }}
+      # 凭证统一从这里注入；缺失时脚本会在开头直接报错。
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+      TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      PYPI_TARGET: ${{ inputs.pypi_target }}
+      MAVEN_TARGET: ${{ inputs.maven_target }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 选择 target
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.target }}" = "all" ] || [ "${{ inputs.target }}" = "${{ matrix.target }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.pick.outputs.run == 'true'
+        uses: dtolnay/rust-toolchain@stable
+      - if: steps.pick.outputs.run == 'true' && matrix.target != 'python'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - if: steps.pick.outputs.run == 'true' && matrix.target == 'java'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+          cache: maven
+      - if: steps.pick.outputs.run == 'true' && matrix.target == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - if: steps.pick.outputs.run == 'true' && matrix.target == 'docker'
+        uses: docker/setup-qemu-action@v3
+      - if: steps.pick.outputs.run == 'true' && matrix.target == 'docker'
+        uses: docker/setup-buildx-action@v3
+
+      - name: 校验版本号与清单一致
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          set -e
+          if [ -n "$VERSION" ]; then
+            manifest="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
+            if [ "$VERSION" != "$manifest" ]; then
+              echo "::error::输入版本 $VERSION 与 Cargo.toml 的 $manifest 不一致；请先更新清单"
+              exit 1
+            fi
+          fi
+
+      - name: 安装 Python 发布工具
+        if: steps.pick.outputs.run == 'true' && matrix.target == 'python'
+        run: python -m pip install --quiet build twine
+
+      - name: 执行发布脚本
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          set -e
+          if [ "$PUBLISH" = "true" ]; then
+            flag="--execute"
+          else
+            flag="--dry-run"
+          fi
+          echo "target=${{ matrix.target }} mode=$flag version=${VERSION:-<manifest>}"
+          bash "scripts/release/release-${{ matrix.target }}.sh" "$flag"
+
+  github-release:
+    name: GitHub Release
+    if: >-
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'github')) ||
+      (github.event_name == 'push' && vars.PUBLISH_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    env:
+      PUBLISH: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name == 'push' && vars.PUBLISH_ENABLED == 'true') }}
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 创建 tag / Release
+        run: |
+          set -e
+          if [ "$PUBLISH" = "true" ]; then
+            bash scripts/release/release-github.sh --execute
+          else
+            bash scripts/release/release-github.sh --dry-run
+          fi

@@ -1,0 +1,62 @@
+{
+  "name": "@pddon/oss-s3-client",
+  "version": "0.1.0",
+  "description": "Official TypeScript client SDK for the S3-compatible OSS Server (SigV4, path-style)",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/cjs/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=14.17"
+  },
+  "author": "OSS Server Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pddon/easy-oss-server.git",
+    "directory": "clients/typescript"
+  },
+  "homepage": "https://github.com/pddon/easy-oss-server/tree/main/clients/typescript#readme",
+  "bugs": {
+    "url": "https://github.com/pddon/easy-oss-server/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "clean": "node scripts/build.js --clean",
+    "build": "node scripts/build.js",
+    "typecheck": "node scripts/build.js --check",
+    "test": "node scripts/build.js && node scripts/run-tests.js all",
+    "test:unit": "node scripts/build.js && node scripts/run-tests.js unit",
+    "test:integration": "node scripts/build.js && node scripts/run-tests.js integration",
+    "prepublishOnly": "node scripts/build.js"
+  },
+  "keywords": [
+    "oss",
+    "s3",
+    "sigv4",
+    "typescript",
+    "client"
+  ],
+  "devDependencies": {
+    "@types/node": "^14.18.63",
+    "typescript": "^4.9.5"
+  }
+}

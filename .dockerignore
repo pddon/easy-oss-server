@@ -1,0 +1,7 @@
+target
+dist
+.smoke
+*.db
+data
+backups
+.git

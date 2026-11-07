@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSS Server - 管理后台</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 登录页 -->
+        <div id="login-page" class="page login-page">
+            <div class="login-box">
+                <h1>OSS Server</h1>
+                <p class="subtitle">轻量级对象存储管理后台</p>
+                <form id="login-form">
+                    <input type="password" id="admin-token" placeholder="Admin Token" autocomplete="current-password">
+                    <button type="submit">登录</button>
+                </form>
+                <p id="login-error" class="error-msg"></p>
+            </div>
+        </div>
+
+        <!-- 主界面 -->
+        <div id="main-page" class="page main-page hidden">
+            <aside class="sidebar">
+                <div class="logo">
+                    <span class="logo-icon">📦</span>
+                    <span class="logo-text">OSS Admin</span>
+                </div>
+                <nav class="nav-menu">
+                    <a href="#/apps" class="nav-item" data-route="apps">
+                        <span class="nav-icon">🔑</span>
+                        <span>应用管理</span>
+                    </a>
+                    <a href="#/buckets" class="nav-item" data-route="buckets">
+                        <span class="nav-icon">🪣</span>
+                        <span>存储桶</span>
+                    </a>
+                    <a href="#/files" class="nav-item" data-route="files">
+                        <span class="nav-icon">📁</span>
+                        <span>文件浏览</span>
+                    </a>
+                    <a href="#/trash" class="nav-item" data-route="trash">
+                        <span class="nav-icon">🗑️</span>
+                        <span>回收站</span>
+                    </a>
+                    <a href="#/maintenance" class="nav-item" data-route="maintenance">
+                        <span class="nav-icon">🧹</span>
+                        <span>清理与自检</span>
+                    </a>
+                    <a href="#/stats" class="nav-item" data-route="stats">
+                        <span class="nav-icon">📊</span>
+                        <span>使用统计</span>
+                    </a>
+                </nav>
+                <div class="sidebar-footer">
+                    <button id="logout-btn" class="logout-btn">退出登录</button>
+                </div>
+            </aside>
+
+            <main class="content">
+                <header class="topbar">
+                    <h2 id="page-title">应用管理</h2>
+                </header>
+
+                <div class="page-content">
+                    <!-- 应用管理 -->
+                    <div id="view-apps" class="view">
+                        <div class="toolbar">
+                            <button id="create-app-btn" class="btn btn-primary">+ 创建应用</button>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>应用名称</th>
+                                        <th>App ID</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="apps-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="apps-pagination" class="pagination"></div>
+                    </div>
+
+                    <!-- 存储桶 -->
+                    <div id="view-buckets" class="view hidden">
+                        <div class="toolbar">
+                            <select id="bucket-app-select" class="form-select">
+                                <option value="">选择应用</option>
+                            </select>
+                            <button id="create-bucket-btn" class="btn btn-primary">+ 创建存储桶</button>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>桶名称</th>
+                                        <th>访问权限</th>
+                                        <th>文件数</th>
+                                        <th>存储量</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="buckets-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="buckets-pagination" class="pagination"></div>
+                    </div>
+
+                    <!-- 文件浏览 -->
+                    <div id="view-files" class="view hidden">
+                        <div class="toolbar">
+                            <select id="file-bucket-select" class="form-select">
+                                <option value="">选择存储桶</option>
+                            </select>
+                            <input type="text" id="file-prefix-input" placeholder="前缀过滤" class="form-input">
+                            <button id="upload-btn" class="btn btn-primary">上传文件</button>
+                            <button id="files-batch-delete" class="btn btn-danger">批量删除</button>
+                            <input type="file" id="file-input" multiple class="visually-hidden">
+                        </div>
+                        <div id="upload-area" class="upload-area">
+                            <p>拖拽文件到此处上传，或点击上方"上传文件"按钮</p>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th><input type="checkbox" id="files-check-all" title="全选"></th>
+                                        <th>文件名</th>
+                                        <th>大小</th>
+                                        <th>类型</th>
+                                        <th>ETag</th>
+                                        <th>修改时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="files-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="files-pagination" class="pagination"></div>
+                    </div>
+
+                    <!-- 回收站 -->
+                    <div id="view-trash" class="view hidden">
+                        <div class="toolbar">
+                            <select id="trash-app-select" class="form-select">
+                                <option value="">全部应用</option>
+                            </select>
+                            <select id="trash-bucket-select" class="form-select">
+                                <option value="">全部存储桶</option>
+                            </select>
+                            <button id="trash-refresh-btn" class="btn btn-secondary">刷新</button>
+                            <button id="trash-restore-batch" class="btn btn-primary">批量还原</button>
+                            <button id="trash-purge-batch" class="btn btn-danger">批量彻底删除</button>
+                            <span id="trash-summary" class="toolbar-info"></span>
+                        </div>
+                        <div class="notice">
+                            普通删除只会把对象移入回收站并保留磁盘文件；只有“彻底删除”或保留期到期后的自动清理才会真正释放空间。
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th class="col-check"><input type="checkbox" id="trash-check-all"></th>
+                                        <th>文件名</th>
+                                        <th>应用</th>
+                                        <th>存储桶</th>
+                                        <th>大小</th>
+                                        <th>移入时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trash-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="trash-pagination" class="pagination"></div>
+                    </div>
+
+                    <!-- 清理与自检 -->
+                    <div id="view-maintenance" class="view hidden">
+                        <div class="toolbar">
+                            <button id="maintenance-cleanup-btn" class="btn btn-primary">立即清理</button>
+                            <button id="maintenance-check-btn" class="btn btn-secondary">立刻自检（只报告）</button>
+                            <button id="maintenance-fix-btn" class="btn btn-danger">自检并修复</button>
+                            <button id="maintenance-refresh-btn" class="btn btn-secondary">刷新状态</button>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">🗑️</div>
+                                <div class="stat-info">
+                                    <div class="stat-value" id="maint-purged">0</div>
+                                    <div class="stat-label">上次清理删除对象</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">💾</div>
+                                <div class="stat-info">
+                                    <div class="stat-value" id="maint-freed">0 B</div>
+                                    <div class="stat-label">上次清理释放空间</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">⚠️</div>
+                                <div class="stat-info">
+                                    <div class="stat-value" id="maint-invalid">0</div>
+                                    <div class="stat-label">失效记录</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">👻</div>
+                                <div class="stat-info">
+                                    <div class="stat-value" id="maint-orphan">0</div>
+                                    <div class="stat-label">孤儿文件</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <h3 class="panel-title">配置</h3>
+                            <div id="maintenance-config" class="kv-grid"></div>
+                        </div>
+
+                        <div class="panel">
+                            <h3 class="panel-title">最近一次清理</h3>
+                            <div id="maintenance-cleanup-info" class="kv-grid">
+                                <span class="muted">暂无运行记录</span>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <h3 class="panel-title">最近一次自检</h3>
+                            <div id="maintenance-check-info" class="kv-grid">
+                                <span class="muted">暂无运行记录</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 使用统计 -->
+                    <div id="view-stats" class="view hidden">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">🔑</div>
+                                <div class="stat-info">
+                                    <div class="stat-value" id="stat-apps">0</div>
+                                    <div class="stat-label">应用总数</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">🪣</div>
+                                <div class="stat-info">
+                                    <div class="stat-value" id="stat-buckets">0</div>
+                                    <div class="stat-label">存储桶总数</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">📄</div>
+                                <div class="stat-info">
+                                    <div class="stat-value" id="stat-files">0</div>
+                                    <div class="stat-label">文件总数</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">💾</div>
+                                <div class="stat-info">
+                                    <div class="stat-value" id="stat-size">0 B</div>
+                                    <div class="stat-label">总存储量</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 模态框 -->
+    <div id="modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">标题</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modal-body" class="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Toast 通知 -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

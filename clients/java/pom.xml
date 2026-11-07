@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.pddon.oss</groupId>
+  <artifactId>oss-client</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>oss-client</name>
+  <description>Official Java client SDK for the OSS server (S3-compatible API, AWS Signature V4).</description>
+  <url>https://github.com/pddon/easy-oss-server</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>oss-server-team</id>
+      <name>OSS Server Team</name>
+      <url>https://github.com/pddon</url>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/pddon/easy-oss-server.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/pddon/easy-oss-server.git</developerConnection>
+    <url>https://github.com/pddon/easy-oss-server</url>
+    <tag>HEAD</tag>
+  </scm>
+
+  <!--
+    默认发布目标：Maven Central（占位地址，需替换 __MAVEN_CENTRAL_STAGING_URL__）。
+    GitHub Packages 目标见文件末尾的 github-packages profile：
+      mvn deploy -Pgithub-packages
+    Central 目标：
+      mvn deploy -Pcentral
+  -->
+  <distributionManagement>
+    <repository>
+      <id>central</id>
+      <name>Maven Central Staging</name>
+      <url>__MAVEN_CENTRAL_STAGING_URL__</url>
+    </repository>
+    <snapshotRepository>
+      <id>central-snapshots</id>
+      <name>Maven Central Snapshots</name>
+      <url>__MAVEN_CENTRAL_STAGING_URL__</url>
+    </snapshotRepository>
+  </distributionManagement>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
+  </properties>
+
+  <dependencies>
+    <!-- 运行期零外部依赖：只用 JDK 自带的 HttpURLConnection / javax.xml。 -->
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.13.2</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.8.1</version>
+        <configuration>
+          <encoding>UTF-8</encoding>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>2.22.2</version>
+        <configuration>
+          <encoding>UTF-8</encoding>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.2.0</version>
+      </plugin>
+      <!-- Central 要求 sources / javadoc 产物。 -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.2.1</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar-no-fork</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.2.0</version>
+        <configuration>
+          <doclint>none</doclint>
+          <failOnError>false</failOnError>
+          <quiet>true</quiet>
+        </configuration>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- Maven Central：使用顶层 distributionManagement，并启用 GPG 签名（需已配置 gpg）。 -->
+    <profile>
+      <id>central</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>1.6</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!-- GitHub Packages：覆盖 distributionManagement，发布到当前仓库的 Packages。 -->
+    <profile>
+      <id>github-packages</id>
+      <distributionManagement>
+        <repository>
+          <id>github</id>
+          <name>GitHub Packages</name>
+          <url>https://maven.pkg.github.com/pddon/easy-oss-server</url>
+        </repository>
+        <snapshotRepository>
+          <id>github</id>
+          <name>GitHub Packages</name>
+          <url>https://maven.pkg.github.com/pddon/easy-oss-server</url>
+        </snapshotRepository>
+      </distributionManagement>
+    </profile>
+  </profiles>
+</project>
