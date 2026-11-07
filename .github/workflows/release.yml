@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '发布版本（留空则使用清单中的 0.1.0）'
+        description: '发布版本（留空则使用清单中的 0.1.1）'
         required: false
         type: string
         default: ''
@@ -197,10 +197,10 @@ jobs:
       matrix:
         include:
           - dir: js
-            pkg: oss-s3-client
+            pkg: com.pddon.oss-client
             artifact: npm-js
           - dir: typescript
-            pkg: '@pddon/oss-s3-client'
+            pkg: com.pddon.oss-client-ts
             artifact: npm-ts
     env:
       NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

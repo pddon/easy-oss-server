@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use oss_s3_client::signing::{
+use pddon_oss_client::signing::{
     canonical_query_string, canonical_request, compute_signature, sha256_hex, string_to_sign,
     uri_encode, EMPTY_PAYLOAD_SHA256, UNSIGNED_PAYLOAD,
 };

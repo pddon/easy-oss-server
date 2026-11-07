@@ -19,7 +19,7 @@ use crate::Error;
 /// 可直接链式调用对象 / 分片方法而无需再传 `bucket`：
 ///
 /// ```no_run
-/// # async fn demo(client: oss_s3_client::OssClient) -> Result<(), oss_s3_client::Error> {
+/// # async fn demo(client: pddon_oss_client::OssClient) -> Result<(), pddon_oss_client::Error> {
 /// client
 ///     .bucket("my-bucket")
 ///     .put_object("docs/a.txt", b"hello".to_vec(), &Default::default())

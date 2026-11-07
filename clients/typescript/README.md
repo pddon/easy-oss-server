@@ -1,4 +1,4 @@
-# @pddon/oss-s3-client — TypeScript 客户端 SDK
+# com.pddon.oss-client-ts — TypeScript 客户端 SDK
 
 Rust 版 OSS Server 的官方 TypeScript / JavaScript 客户端，基于 S3 兼容协议（SigV4、path-style URL）。
 与 Rust / Java / JavaScript / Python 客户端保持统一的 23 个方法契约，参数顺序一致。
@@ -17,7 +17,7 @@ Rust 版 OSS Server 的官方 TypeScript / JavaScript 客户端，基于 S3 兼�
 发布后从 npm 安装：
 
 ```bash
-npm install @pddon/oss-s3-client
+npm install com.pddon.oss-client-ts
 ```
 
 本地开发或从源码使用：
@@ -41,7 +41,7 @@ npm run build
 ## 快速开始
 
 ```ts
-import { OSSClient } from '@pddon/oss-s3-client';
+import { OSSClient } from 'com.pddon.oss-client-ts';
 
 const client = new OSSClient({
   endpoint: 'http://127.0.0.1:8080',
@@ -63,7 +63,7 @@ console.log(result.etag, result.size);
 CommonJS：
 
 ```js
-const { OSSClient } = require('@pddon/oss-s3-client');
+const { OSSClient } = require('com.pddon.oss-client-ts');
 ```
 
 ---
@@ -365,7 +365,7 @@ client.close(); // 关闭 keep-alive 连接池
 另外提供 `statusCode`、`resource`、`retryable`，以及 `isOSSError(value)` 类型守卫。
 
 ```ts
-import { OSSClient, OSSError, isOSSError } from '@pddon/oss-s3-client';
+import { OSSClient, OSSError, isOSSError } from 'com.pddon.oss-client-ts';
 
 try {
   await client.getObject('my-bucket', 'missing.txt');

@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use md5::{Digest, Md5};
-use oss_s3_client::{ClientConfig, CompletedPart, Error, OssClient, PutObjectOptions};
+use pddon_oss_client::{ClientConfig, CompletedPart, Error, OssClient, PutObjectOptions};
 
 #[derive(Debug, Clone)]
 struct Captured {

@@ -1,6 +1,6 @@
 {
-  "name": "@pddon/oss-s3-client",
-  "version": "0.1.0",
+  "name": "com.pddon.oss-client-ts",
+  "version": "0.1.1",
   "description": "Official TypeScript client SDK for the S3-compatible OSS Server (SigV4, path-style)",
   "license": "MIT",
   "type": "commonjs",

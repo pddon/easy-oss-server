@@ -1,4 +1,4 @@
-# oss-s3-client（Python）
+# pddon-oss-client（Python）
 
 Rust 版 OSS 服务端（S3 兼容协议）的官方 Python 客户端。零第三方运行时依赖，仅使用
 `http.client`、`urllib`、`hmac`/`hashlib` 与 `xml.etree` 等标准库。

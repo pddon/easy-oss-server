@@ -1,4 +1,4 @@
-# oss-s3-client
+# com.pddon.oss-client
 
 OSS Server 官方 JavaScript / TypeScript 客户端。零运行时依赖，仅使用 Node 内置模块
 （`crypto` / `http` / `https` / `fs` / `stream`）。
@@ -22,7 +22,7 @@ OSS Server 官方 JavaScript / TypeScript 客户端。零运行时依赖，仅�
 ## 安装
 
 ```bash
-npm install oss-s3-client
+npm install com.pddon.oss-client
 ```
 
 本地开发安装：
@@ -34,7 +34,7 @@ npm install file:E:/ai_code_proj/oss-server/clients/js
 ## 快速开始（五行核心调用）
 
 ```js
-const { OSSClient } = require('oss-s3-client');
+const { OSSClient } = require('com.pddon.oss-client');
 const client = new OSSClient({ endpoint: 'http://127.0.0.1:8080', accessKey: 'APP_ID', secretKey: 'APP_SECRET' });
 await client.putObject('my-bucket', 'hello.txt', Buffer.from('hello oss'));
 const body = await client.getObject('my-bucket', 'hello.txt');
@@ -60,10 +60,10 @@ const url = client.presignGet('my-bucket', 'hello.txt', 600);
 
 ```js
 // CommonJS
-const { OSSClient, OSSError, isOSSError } = require('oss-s3-client');
+const { OSSClient, OSSError, isOSSError } = require('com.pddon.oss-client');
 
 // ESM
-import { OSSClient, OSSError, isOSSError } from 'oss-s3-client';
+import { OSSClient, OSSError, isOSSError } from 'com.pddon.oss-client';
 
 const client = new OSSClient({
   endpoint: 'http://127.0.0.1:8080',
@@ -75,7 +75,7 @@ const client = new OSSClient({
 TypeScript 直接使用包内类型声明（`types/index.d.ts`）：
 
 ```ts
-import { OSSClient, type PutObjectOptions } from 'oss-s3-client';
+import { OSSClient, type PutObjectOptions } from 'com.pddon.oss-client';
 
 const client = new OSSClient({
   endpoint: 'http://127.0.0.1:8080',
@@ -262,7 +262,7 @@ curl -T D:/data/new.bin "http://127.0.0.1:8080/demo/uploads/new.bin?X-Amz-Algori
 ## 错误处理
 
 ```js
-const { OSSError, OSSTimeoutError, OSSNetworkError, isOSSError } = require('oss-s3-client');
+const { OSSError, OSSTimeoutError, OSSNetworkError, isOSSError } = require('com.pddon.oss-client');
 
 try {
   await client.getObject('demo', 'missing.txt');

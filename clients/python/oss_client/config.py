@@ -31,7 +31,7 @@ class OSSConfig:
     timeout: float = 30.0
     max_retries: int = 3
     retry_backoff: float = 0.5
-    user_agent: str = "oss-client-python/0.1.0"
+    user_agent: str = "oss-client-python/0.1.1"
     path_prefix: str = field(init=False, default="")
 
     def __post_init__(self) -> None:

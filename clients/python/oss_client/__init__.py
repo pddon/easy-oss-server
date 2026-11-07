@@ -1,6 +1,6 @@
 """S3 兼容 OSS 服务端官方 Python 客户端。"""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .client import OSSClient
 from .config import OSSConfig

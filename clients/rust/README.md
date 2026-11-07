@@ -1,4 +1,4 @@
-# oss-s3-client（Rust）
+# pddon-oss-client（Rust）
 
 OSS Server 官方 Rust 客户端 SDK，对接服务端的 S3 兼容 API。API 契约与 Java / JavaScript / Python 客户端统一：方法名在 Rust 使用 snake_case，参数顺序、语义与返回值结构与其他语言一致。
 
@@ -17,7 +17,7 @@ OSS Server 官方 Rust 客户端 SDK，对接服务端的 S3 兼容 API。API �
 
 ```toml
 [dependencies]
-oss-s3-client = "0.1"
+pddon-oss-client = "0.1"
 tokio = { version = "1", features = ["full"] }
 reqwest = "0.12"   # 仅“预签名 URL 第三方上传”示例需要，业务工程按需添加
 ```
@@ -25,7 +25,7 @@ reqwest = "0.12"   # 仅“预签名 URL 第三方上传”示例需要，业务
 本地开发可直接引用路径：
 
 ```toml
-oss-s3-client = { path = "E:/ai_code_proj/oss-server/clients/rust" }
+pddon-oss-client = { path = "E:/ai_code_proj/oss-server/clients/rust" }
 ```
 
 ## 配置

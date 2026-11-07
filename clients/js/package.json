@@ -1,6 +1,6 @@
 {
-  "name": "oss-s3-client",
-  "version": "0.1.0",
+  "name": "com.pddon.oss-client",
+  "version": "0.1.1",
   "description": "Official JavaScript client for OSS Server (S3-compatible API, SigV4, zero dependencies)",
   "main": "index.js",
   "module": "index.mjs",

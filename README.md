@@ -81,13 +81,13 @@ docker run -d --name oss-server \
 
 | 语言 | 目录 | 安装 |
 | --- | --- | --- |
-| Rust | [clients/rust](clients/rust) | `cargo add oss-s3-client` |
+| Rust | [clients/rust](clients/rust) | `cargo add pddon-oss-client` |
 | Java | [clients/java](clients/java) | `mvn install`（Maven 坐标见 [README](clients/java/README.md)） |
-| JavaScript | [clients/js](clients/js) | `npm install oss-s3-client` |
-| TypeScript | [clients/typescript](clients/typescript) | `npm install @pddon/oss-s3-client` |
-| Python | [clients/python](clients/python) | `pip install oss-s3-client` |
+| JavaScript | [clients/js](clients/js) | `npm install com.pddon.oss-client` |
+| TypeScript | [clients/typescript](clients/typescript) | `npm install com.pddon.oss-client-ts` |
+| Python | [clients/python](clients/python) | `pip install pddon-oss-client` |
 
-> 以上包名为候选名，最终以发布时 `scripts/release/release.env` 的配置为准。客户端契约见 [clients/README.md](clients/README.md)。
+> 包名以 `scripts/release/release.env` 的配置为准。客户端契约见 [clients/README.md](clients/README.md)。
 
 ## 特性
 

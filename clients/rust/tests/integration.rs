@@ -16,8 +16,8 @@ use std::time::Duration;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use chrono::Utc;
 use md5::{Digest, Md5};
-use oss_s3_client::signing::{self, ALGORITHM, SERVICE, TERMINATOR};
-use oss_s3_client::{
+use pddon_oss_client::signing::{self, ALGORITHM, SERVICE, TERMINATOR};
+use pddon_oss_client::{
     ClientConfig, CompletedPart, Error, MetadataDirective, OssClient, PutObjectOptions, Range,
 };
 
@@ -100,7 +100,7 @@ async fn cleanup_bucket(client: &OssClient, bucket: &str) {
     let _ = client.delete_bucket(Some(bucket)).await;
 }
 
-fn service_error(error: &Error) -> &oss_s3_client::S3Error {
+fn service_error(error: &Error) -> &pddon_oss_client::S3Error {
     error
         .service()
         .unwrap_or_else(|| panic!("期望 S3 服务端错误，实际为 {error}"))

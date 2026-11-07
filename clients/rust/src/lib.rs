@@ -8,9 +8,9 @@
 //! # 快速开始
 //!
 //! ```no_run
-//! use oss_s3_client::OssClient;
+//! use pddon_oss_client::OssClient;
 //!
-//! # async fn demo() -> Result<(), oss_s3_client::Error> {
+//! # async fn demo() -> Result<(), pddon_oss_client::Error> {
 //! let client = OssClient::new("http://127.0.0.1:8080", "APP_ID", "APP_SECRET")?;
 //! client.create_bucket(Some("my-bucket")).await?;
 //! client.put_object(Some("my-bucket"), "hello.txt", b"hello".to_vec(), &Default::default()).await?;

@@ -1,6 +1,6 @@
 [package]
-name = "oss-s3-client"
-version = "0.1.0"
+name = "pddon-oss-client"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.75"
 description = "Official Rust client SDK for OSS Server's S3-compatible API (SigV4, path-style)"
@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/pddon/easy-oss-server"
 homepage = "https://github.com/pddon/easy-oss-server"
-documentation = "https://docs.rs/oss-s3-client"
+documentation = "https://docs.rs/pddon-oss-client"
 keywords = ["oss", "s3", "storage", "client"]
 categories = ["api-bindings"]
 # 发布内容白名单：只带源码、README 与两份许可证，避免把 tests/ 之外的本地产物打进 crate。

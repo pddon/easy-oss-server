@@ -8,19 +8,19 @@
 
 | 语言 | 目录 | 安装方式 | 包名 / 坐标 | 最低运行时要求 | 测试命令 | 测试数量 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Rust | [`clients/rust`](rust/) | 在 `Cargo.toml` 中加 path 依赖；发布到 registry 后可用版本依赖 | crate `oss-s3-client` `0.1.0` | Rust `1.75`（edition 2021），异步运行时需 `tokio` | 单元：`cargo test --lib --test sigv4_vectors --test client_behavior`；集成：按 README 启动服务端并设置 `OSS_TEST_ENDPOINT`（或 `OSS_TEST_ADMIN_TOKEN`）后 `cargo test --test integration` | 见该子项目 README |
-| Java | [`clients/java`](java/) | 在 `clients/java` 执行 `mvn install`；也可直接使用 `target/oss-s3-client-1.0.0.jar` | `com.oss:oss-s3-client:1.0.0` | JDK 8+；构建需 Maven 3.3+；运行期零第三方依赖 | 单元：`mvn test`（未设置集成环境变量时集成测试自动跳过）；集成：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-integration.ps1` | 见该子项目 README |
-| JavaScript | [`clients/js`](js/) | `npm install oss-s3-client`；本仓库本地安装用 `npm install E:/ai_code_proj/oss-server/clients/js` | npm 包 `oss-s3-client` `1.0.0` | Node.js >= 14.17；零运行时依赖，仅用内置模块 | `npm run build`；`npm run test:unit`；`npm run test:integration`；`npm test`（单元 + 集成） | 见该子项目 README |
-| TypeScript | [`clients/typescript`](typescript/) | `npm install @pddon/oss-s3-client`；本仓库本地开发用 `npm install` 后 `npm run build`，再以本地路径安装 | npm 包 `@pddon/oss-s3-client` `0.1.0` | Node.js >= 14.17；零运行时依赖，使用内置 `crypto` / `http` / `https` | `npm run typecheck`；`npm run build`；`npm run test:unit`；`npm run test:integration`；`npm test`（build + 单元 + 集成） | 见该子项目 README |
-| Python | [`clients/python`](python/) | 在 `clients/python` 执行 `python -m pip install -e .`；或把该目录加入 `PYTHONPATH` | 发行包 `oss-s3-client` `0.1.0`（import 名为 `oss_client`） | Python >= 3.8；构建需 setuptools >= 61；运行期零第三方依赖 | 单元：`python -m unittest discover -s tests -p "test_unit.py" -v`；`python -m unittest discover -s tests -p "test_signer.py" -v`；集成：`python -m unittest discover -s tests -p "test_integration.py" -v`；全部：`python -m unittest discover -s tests -v` | 见该子项目 README |
+| Rust | [`clients/rust`](rust/) | 在 `Cargo.toml` 中加 path 依赖；发布到 registry 后可用版本依赖 | crate `pddon-oss-client` `0.1.1` | Rust `1.75`（edition 2021），异步运行时需 `tokio` | 单元：`cargo test --lib --test sigv4_vectors --test client_behavior`；集成：按 README 启动服务端并设置 `OSS_TEST_ENDPOINT`（或 `OSS_TEST_ADMIN_TOKEN`）后 `cargo test --test integration` | 见该子项目 README |
+| Java | [`clients/java`](java/) | 在 `clients/java` 执行 `mvn install`；也可直接使用 `target/oss-client-0.1.1.jar` | `com.pddon.oss:oss-client:0.1.1` | JDK 8+；构建需 Maven 3.3+；运行期零第三方依赖 | 单元：`mvn test`（未设置集成环境变量时集成测试自动跳过）；集成：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-integration.ps1` | 见该子项目 README |
+| JavaScript | [`clients/js`](js/) | `npm install com.pddon.oss-client`；本仓库本地安装用 `npm install E:/ai_code_proj/oss-server/clients/js` | npm 包 `com.pddon.oss-client` `0.1.1` | Node.js >= 14.17；零运行时依赖，仅用内置模块 | `npm run build`；`npm run test:unit`；`npm run test:integration`；`npm test`（单元 + 集成） | 见该子项目 README |
+| TypeScript | [`clients/typescript`](typescript/) | `npm install com.pddon.oss-client-ts`；本仓库本地开发用 `npm install` 后 `npm run build`，再以本地路径安装 | npm 包 `com.pddon.oss-client-ts` `0.1.1` | Node.js >= 14.17；零运行时依赖，使用内置 `crypto` / `http` / `https` | `npm run typecheck`；`npm run build`；`npm run test:unit`；`npm run test:integration`；`npm test`（build + 单元 + 集成） | 见该子项目 README |
+| Python | [`clients/python`](python/) | 在 `clients/python` 执行 `python -m pip install -e .`；或把该目录加入 `PYTHONPATH` | 发行包 `pddon-oss-client` `0.1.1`（import 名为 `oss_client`） | Python >= 3.8；构建需 setuptools >= 61；运行期零第三方依赖 | 单元：`python -m unittest discover -s tests -p "test_unit.py" -v`；`python -m unittest discover -s tests -p "test_signer.py" -v`；集成：`python -m unittest discover -s tests -p "test_integration.py" -v`；全部：`python -m unittest discover -s tests -v` | 见该子项目 README |
 
-JavaScript 与 TypeScript 是两个独立发布的包：`clients/js` 是 `oss-s3-client@1.0.0`；`clients/typescript` 是 `@pddon/oss-s3-client@0.1.0`，构建产物为 `dist/cjs`（CommonJS）、`dist/esm`（ESM）与 `dist/types`（`.d.ts`），因此 JS 项目也可以直接 `require('@pddon/oss-s3-client')`。
+JavaScript 与 TypeScript 是两个独立发布的包：`clients/js` 是 `com.pddon.oss-client@0.1.1`；`clients/typescript` 是 `com.pddon.oss-client-ts@0.1.1`，构建产物为 `dist/cjs`（CommonJS）、`dist/esm`（ESM）与 `dist/types`（`.d.ts`），因此 JS 项目也可以直接 `require('com.pddon.oss-client-ts')`。
 
 Rust 的本地依赖写法：
 
 ```toml
 [dependencies]
-oss-s3-client = { path = "../oss-server/clients/rust" }  # 发布后可改为 oss-s3-client = "0.1"
+pddon-oss-client = { path = "../oss-server/clients/rust" }  # 发布后可改为 pddon-oss-client = "0.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -28,9 +28,9 @@ Java 的 Maven 坐标写法：
 
 ```xml
 <dependency>
-    <groupId>com.oss</groupId>
-    <artifactId>oss-s3-client</artifactId>
-    <version>1.0.0</version>
+    <groupId>com.pddon.oss</groupId>
+    <artifactId>oss-client</artifactId>
+    <version>0.1.1</version>
 </dependency>
 ```
 
@@ -106,7 +106,7 @@ public class QuickStart {
 
 ```js
 // quickstart.js（CommonJS）
-const { OSSClient } = require('oss-s3-client');
+const { OSSClient } = require('com.pddon.oss-client');
 
 async function main() {
   // 1. 配置
@@ -142,7 +142,7 @@ main().catch((err) => {
 
 ```ts
 // quickstart.ts
-import { OSSClient } from '@pddon/oss-s3-client';
+import { OSSClient } from 'com.pddon.oss-client-ts';
 
 async function main(): Promise<void> {
   // 1. 配置
