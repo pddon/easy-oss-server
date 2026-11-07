@@ -224,7 +224,7 @@ jobs:
         shell: bash
         run: |
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::缺少 secret NPM_TOKEN（npm granular token，需 publish 权限）"
+            echo "::error::缺少 secret NPM_TOKEN（需 granular token、publish 权限，并勾选 Bypass 2FA）"
             exit 1
           fi
 
@@ -329,13 +329,23 @@ jobs:
           java-version: '8'
           cache: maven
 
-      - name: 判断 Central 凭据是否齐全
+      # 四项都存在还不够：私钥必须能被 gpg 真正导入才算就绪。
+      # 占位值 / 格式错误的私钥只跳过 Central 并给出 warning，不让整条 job 变红。
+      - name: 判断 Central 凭据（含 GPG 可用性校验）
         id: creds
         shell: bash
         run: |
+          ready=false
           if [ -n "${MAVEN_CENTRAL_USERNAME:-}" ] && [ -n "${MAVEN_CENTRAL_PASSWORD:-}" ] \
              && [ -n "${GPG_PRIVATE_KEY:-}" ] && [ -n "${GPG_PASSPHRASE:-}" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            if printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import >/tmp/gpg-import.log 2>&1 \
+               && gpg --batch --list-secret-keys >/dev/null 2>&1; then
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+            else
+              detail=$(tail -n 2 /tmp/gpg-import.log | tr '\n' ' ')
+              echo "::warning::GPG_PRIVATE_KEY 无法导入（占位值或格式错误），跳过 Maven Central。gpg: ${detail}"
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
@@ -369,13 +379,6 @@ jobs:
         working-directory: clients/java
         run: mvn -B deploy -Pgithub-packages -DskipTests
 
-      - name: 导入 GPG 私钥
-        if: steps.creds.outputs.ready == 'true'
-        shell: bash
-        run: |
-          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
-          gpg --batch --list-secret-keys
-
       - name: 发布到 Maven Central
         if: steps.creds.outputs.ready == 'true'
         working-directory: clients/java
@@ -389,14 +392,17 @@ jobs:
           if [ "${{ steps.creds.outputs.ready }}" = "true" ]; then
             echo "- Maven Central：已发布" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "- Maven Central：**未发布**（缺少 MAVEN_CENTRAL_USERNAME / MAVEN_CENTRAL_PASSWORD / GPG_PRIVATE_KEY / GPG_PASSPHRASE 中的一项或多项）" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Maven Central：**未发布**（缺少 MAVEN_CENTRAL_USERNAME / MAVEN_CENTRAL_PASSWORD / GPG_PRIVATE_KEY / GPG_PASSPHRASE 中的一项或多项，或 GPG 私钥无法导入）" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: actions/upload-artifact@v7.0.2
+      # Central 失败也要保留 jar 附件；job 结论仍由失败步骤决定。
+      - name: 上传 jar（即使发布失败也保留）
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: java-jars
           path: clients/java/target/*.jar
-          if-no-files-found: error
+          if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
   # 6. GitHub Release：汇总 dist 部署包 + 各语言产物 + 校验文件
