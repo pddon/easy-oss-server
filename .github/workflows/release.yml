@@ -1,143 +1,444 @@
 name: Release
 
-# 默认不会自动发布：
-# - 手动触发（workflow_dispatch）时，只有 publish=true 才真正上传，否则全部走 dry-run。
-# - 只有仓库变量 PUBLISH_ENABLED=true 时，推 v* tag 才会执行（仍走脚本的 --execute）。
+# 完整的发布流水线：一次触发，发布全部产物。
+#   - 推送 tag v*（例如 v0.1.0）
+#   - 或在 Actions 页面手动 workflow_dispatch（version 留空则取清单版本）
+#
+# 产物去向：
+#   Docker  -> ghcr.io/<owner>/<repo>（GITHUB_TOKEN，多架构）
+#   Rust    -> crates.io（secret CARGO_REGISTRY_TOKEN）
+#   npm     -> registry.npmjs.org（secret NPM_TOKEN）
+#   Python  -> PyPI（OIDC trusted publishing，secret PYPI_TOKEN 作为兜底）
+#   Java    -> GitHub Packages（GITHUB_TOKEN）；Maven Central 可选（需全部凭据）
+#   Release -> 汇总所有打包产物 + SHA256SUMS 挂到 GitHub Release
 on:
-  workflow_dispatch:
-    inputs:
-      target:
-        description: 要发布的包
-        type: choice
-        default: all
-        options: [all, rust, java, npm-js, npm-ts, python, docker, github]
-      publish:
-        description: 真正发布（关闭时只做 dry-run）
-        type: boolean
-        default: false
-      version:
-        description: 发布版本（留空则使用清单中的版本）
-        type: string
-        default: ''
-      pypi_target:
-        description: PyPI 目标
-        type: choice
-        default: testpypi
-        options: [testpypi, pypi]
-      maven_target:
-        description: Maven 目标
-        type: choice
-        default: github-packages
-        options: [github-packages, central]
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本（留空则使用清单中的 0.1.0）'
+        required: false
+        type: string
+        default: ''
 
+# 最小权限：各 job 按需提权。
 permissions:
-  contents: write
+  contents: read
+
+# 防止同一版本被并发重复发布。
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  package:
-    name: Package / ${{ matrix.target }}
-    if: >-
-      (github.event_name == 'workflow_dispatch') ||
-      (github.event_name == 'push' && vars.PUBLISH_ENABLED == 'true')
+  # ---------------------------------------------------------------------------
+  # 版本解析与一致性校验：所有下游 job 都依赖这里输出的 version。
+  # ---------------------------------------------------------------------------
+  prepare:
+    name: Prepare / version
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      major_minor: ${{ steps.v.outputs.major_minor }}
+      short_sha: ${{ steps.v.outputs.short_sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: 解析版本并校验清单一致
+        id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=""
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            if [ "${GITHUB_REF_NAME#v}" = "${GITHUB_REF_NAME}" ]; then
+              echo "::error::tag 必须以 v 开头（当前：${GITHUB_REF_NAME}）"
+              exit 1
+            fi
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          if [ -z "$VERSION" ]; then
+            VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
+          fi
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'; then
+            echo "::error::版本号格式不合法：$VERSION"
+            exit 1
+          fi
+
+          fail=0
+          check() {
+            if [ "$2" != "$VERSION" ]; then
+              echo "::error::$1 的版本是 $2，与发布版本 $VERSION 不一致"
+              fail=1
+            fi
+          }
+          check "Cargo.toml" "$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
+          check "clients/rust/Cargo.toml" "$(sed -n 's/^version = "\(.*\)"$/\1/p' clients/rust/Cargo.toml | head -n 1)"
+          check "clients/js/package.json" "$(node -p "require('./clients/js/package.json').version")"
+          check "clients/typescript/package.json" "$(node -p "require('./clients/typescript/package.json').version")"
+          check "clients/python/pyproject.toml" "$(sed -n 's/^version = "\(.*\)"$/\1/p' clients/python/pyproject.toml | head -n 1)"
+          check "clients/java/pom.xml" "$(grep -m1 '<version>' clients/java/pom.xml | sed -E 's/.*<version>([^<]*)<.*/\1/')"
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::请先把所有清单版本统一为 $VERSION 再打 tag"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "major_minor=$(printf '%s' "$VERSION" | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "发布版本：$VERSION"
+
+  # ---------------------------------------------------------------------------
+  # 1. Docker -> GHCR（必须成功；GITHUB_TOKEN 内置，不依赖外部 secret）
+  # ---------------------------------------------------------------------------
+  docker:
+    name: Docker / ghcr.io multi-arch
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: 构建前测试
+        run: cargo test --lib
+
+      - uses: docker/setup-qemu-action@v4.4.0
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v4.4.1
+
+      - name: 登录 GHCR
+        uses: docker/login-action@v4.8.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送（linux/amd64 + linux/arm64）
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.major_minor }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ needs.prepare.outputs.short_sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------------
+  # 2. Rust 客户端 -> crates.io
+  # ---------------------------------------------------------------------------
+  crates:
+    name: Rust / crates.io
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: 校验 CARGO_REGISTRY_TOKEN
+        shell: bash
+        run: |
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "::error::缺少 secret CARGO_REGISTRY_TOKEN（crates.io API token，需 publish 权限）"
+            exit 1
+          fi
+
+      - name: 测试
+        run: cargo test --manifest-path clients/rust/Cargo.toml
+
+      - name: 打包（生成 .crate 作为 Release 附件）
+        run: cargo package --manifest-path clients/rust/Cargo.toml --allow-dirty
+
+      - name: 发布到 crates.io
+        run: cargo publish --manifest-path clients/rust/Cargo.toml --token "$CARGO_REGISTRY_TOKEN"
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: crate
+          path: clients/rust/target/package/*.crate
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 3. npm（JS + TS）-> registry.npmjs.org
+  #    测试脚本会构建并启动服务端，因此沿用 CI 的 windows-latest。
+  # ---------------------------------------------------------------------------
+  npm:
+    name: npm / ${{ matrix.pkg }}
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
-        target: [rust, java, npm-js, npm-ts, python, docker]
+        include:
+          - dir: js
+            pkg: oss-s3-client
+            artifact: npm-js
+          - dir: typescript
+            pkg: '@pddon/oss-s3-client'
+            artifact: npm-ts
     env:
-      PUBLISH: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name == 'push' && vars.PUBLISH_ENABLED == 'true') }}
-      VERSION: ${{ inputs.version }}
-      # 凭证统一从这里注入；缺失时脚本会在开头直接报错。
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-      TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-      PYPI_TARGET: ${{ inputs.pypi_target }}
-      MAVEN_TARGET: ${{ inputs.maven_target }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GITHUB_ACTOR: ${{ github.actor }}
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    defaults:
+      run:
+        working-directory: clients/${{ matrix.dir }}
     steps:
-      - uses: actions/checkout@v4
-      - name: 选择 target
-        id: pick
-        run: |
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.target }}" = "all" ] || [ "${{ inputs.target }}" = "${{ matrix.target }}" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          fi
-      - if: steps.pick.outputs.run == 'true'
-        uses: dtolnay/rust-toolchain@stable
-      - if: steps.pick.outputs.run == 'true' && matrix.target != 'python'
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '18'
-      - if: steps.pick.outputs.run == 'true' && matrix.target == 'java'
-        uses: actions/setup-java@v4
+          registry-url: https://registry.npmjs.org/
+          cache: npm
+          cache-dependency-path: clients/${{ matrix.dir }}/package-lock.json
+
+      - name: 校验 NPM_TOKEN
+        shell: bash
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::缺少 secret NPM_TOKEN（npm granular token，需 publish 权限）"
+            exit 1
+          fi
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 构建并测试
+        run: npm test
+
+      - name: 打包（生成 .tgz 作为 Release 附件）
+        run: npm pack
+
+      - name: 发布到 npm
+        run: npm publish --access public
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ${{ matrix.artifact }}
+          path: clients/${{ matrix.dir }}/*.tgz
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 4. Python -> PyPI（优先 OIDC trusted publishing，PYPI_TOKEN 作为兜底）
+  # ---------------------------------------------------------------------------
+  pypi:
+    name: Python / PyPI
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.10'
+
+      - name: 安装构建工具
+        run: python -m pip install --quiet build twine
+
+      - name: 测试
+        working-directory: clients/python
+        run: python -m unittest discover -s tests -v
+
+      - name: 构建 wheel + sdist
+        working-directory: clients/python
+        run: python -m build
+
+      - name: twine check
+        working-directory: clients/python
+        run: python -m twine check dist/*
+
+      - name: 记录发布方式
+        shell: bash
+        run: |
+          if [ -z "${PYPI_TOKEN:-}" ]; then
+            echo "PyPI：未配置 PYPI_TOKEN，使用 OIDC 可信发布；若 pypi.org 未配置 trusted publisher，本 job 会失败。" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "PyPI：使用 PYPI_TOKEN 发布。" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: python-dist
+          path: clients/python/dist/*
+          if-no-files-found: error
+
+      - name: 发布到 PyPI
+        uses: pypa/gh-action-pypi-publish@v1.14.3
+        with:
+          packages-dir: clients/python/dist
+          password: ${{ secrets.PYPI_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # 5. Java -> GitHub Packages（GITHUB_TOKEN）；Maven Central 可选
+  # ---------------------------------------------------------------------------
+  java:
+    name: Java / GitHub Packages (+ Central)
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+      MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-java@v6.2.0
         with:
           distribution: temurin
           java-version: '8'
           cache: maven
-      - if: steps.pick.outputs.run == 'true' && matrix.target == 'python'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      - if: steps.pick.outputs.run == 'true' && matrix.target == 'docker'
-        uses: docker/setup-qemu-action@v3
-      - if: steps.pick.outputs.run == 'true' && matrix.target == 'docker'
-        uses: docker/setup-buildx-action@v3
 
-      - name: 校验版本号与清单一致
-        if: steps.pick.outputs.run == 'true'
+      - name: 判断 Central 凭据是否齐全
+        id: creds
+        shell: bash
         run: |
-          set -e
-          if [ -n "$VERSION" ]; then
-            manifest="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
-            if [ "$VERSION" != "$manifest" ]; then
-              echo "::error::输入版本 $VERSION 与 Cargo.toml 的 $manifest 不一致；请先更新清单"
-              exit 1
-            fi
-          fi
-
-      - name: 安装 Python 发布工具
-        if: steps.pick.outputs.run == 'true' && matrix.target == 'python'
-        run: python -m pip install --quiet build twine
-
-      - name: 执行发布脚本
-        if: steps.pick.outputs.run == 'true'
-        run: |
-          set -e
-          if [ "$PUBLISH" = "true" ]; then
-            flag="--execute"
+          if [ -n "${MAVEN_CENTRAL_USERNAME:-}" ] && [ -n "${MAVEN_CENTRAL_PASSWORD:-}" ] \
+             && [ -n "${GPG_PRIVATE_KEY:-}" ] && [ -n "${GPG_PASSPHRASE:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            flag="--dry-run"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "target=${{ matrix.target }} mode=$flag version=${VERSION:-<manifest>}"
-          bash "scripts/release/release-${{ matrix.target }}.sh" "$flag"
 
-  github-release:
+      - name: 配置 Maven 凭据
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.m2"
+          cat > "$HOME/.m2/settings.xml" <<EOF
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${GITHUB_ACTOR}</username>
+                <password>${GITHUB_TOKEN}</password>
+              </server>
+              <server>
+                <id>central</id>
+                <username>${MAVEN_CENTRAL_USERNAME}</username>
+                <password>${MAVEN_CENTRAL_PASSWORD}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      - name: 测试并打包
+        working-directory: clients/java
+        run: mvn -B package
+
+      - name: 发布到 GitHub Packages
+        working-directory: clients/java
+        run: mvn -B deploy -Pgithub-packages -DskipTests
+
+      - name: 导入 GPG 私钥
+        if: steps.creds.outputs.ready == 'true'
+        shell: bash
+        run: |
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --batch --list-secret-keys
+
+      - name: 发布到 Maven Central
+        if: steps.creds.outputs.ready == 'true'
+        working-directory: clients/java
+        run: mvn -B deploy -Pcentral -DskipTests -Dgpg.passphrase="$GPG_PASSPHRASE"
+
+      - name: 写入发布结果摘要
+        shell: bash
+        run: |
+          echo "### Java 发布结果" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GitHub Packages：已发布 com.pddon.oss:oss-client:${{ needs.prepare.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.creds.outputs.ready }}" = "true" ]; then
+            echo "- Maven Central：已发布" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Maven Central：**未发布**（缺少 MAVEN_CENTRAL_USERNAME / MAVEN_CENTRAL_PASSWORD / GPG_PRIVATE_KEY / GPG_PASSPHRASE 中的一项或多项）" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: java-jars
+          path: clients/java/target/*.jar
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 6. GitHub Release：汇总 dist 部署包 + 各语言产物 + 校验文件
+  # ---------------------------------------------------------------------------
+  release:
     name: GitHub Release
-    if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'github')) ||
-      (github.event_name == 'push' && vars.PUBLISH_ENABLED == 'true')
+    needs: [prepare, docker, crates, npm, pypi, java]
+    # Docker 是硬性要求；其余 job 的结果如实写入 summary。
+    if: always() && needs.docker.result == 'success'
     runs-on: ubuntu-latest
-    env:
-      PUBLISH: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name == 'push' && vars.PUBLISH_ENABLED == 'true') }}
-      VERSION: ${{ inputs.version }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/download-artifact@v8.0.2
         with:
-          fetch-depth: 0
-      - name: 创建 tag / Release
+          path: artifacts
+
+      - name: 打包 dist 部署包
+        shell: bash
         run: |
-          set -e
-          if [ "$PUBLISH" = "true" ]; then
-            bash scripts/release/release-github.sh --execute
-          else
-            bash scripts/release/release-github.sh --dry-run
-          fi
+          tar -czf "artifacts/oss-server-${{ needs.prepare.outputs.version }}-dist.tar.gz" dist
+
+      - name: 生成 SHA256SUMS
+        shell: bash
+        working-directory: artifacts
+        run: |
+          find . -type f ! -name SHA256SUMS -print0 | xargs -0 sha256sum > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: 写入各 job 结果
+        shell: bash
+        run: |
+          echo "### 发布结果（v${{ needs.prepare.outputs.version }}）" >> "$GITHUB_STEP_SUMMARY"
+          echo "| job | 结果 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| docker (ghcr.io) | ${{ needs.docker.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| crates.io | ${{ needs.crates.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| npm | ${{ needs.npm.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| PyPI | ${{ needs.pypi.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Java | ${{ needs.java.result }} |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v3.0.4
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          name: v${{ needs.prepare.outputs.version }}
+          generate_release_notes: true
+          files: artifacts/**
+          fail_on_unmatched_files: false
