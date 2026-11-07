@@ -176,11 +176,14 @@ jobs:
       - name: 发布到 crates.io
         run: cargo publish --manifest-path clients/rust/Cargo.toml --token "$CARGO_REGISTRY_TOKEN"
 
-      - uses: actions/upload-artifact@v7.0.2
+      # 发布失败也要保留已打好的附件：失败结论由 publish 步骤决定，上传步骤不改变 job 结论。
+      - name: 上传 .crate（即使发布失败也保留）
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: crate
           path: clients/rust/target/package/*.crate
-          if-no-files-found: error
+          if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
   # 3. npm（JS + TS）-> registry.npmjs.org
@@ -237,11 +240,14 @@ jobs:
       - name: 发布到 npm
         run: npm publish --access public
 
-      - uses: actions/upload-artifact@v7.0.2
+      # 发布失败也要保留已打好的 .tgz；publish 失败时 job 仍然标红。
+      - name: 上传 .tgz（即使发布失败也保留）
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ matrix.artifact }}
           path: clients/${{ matrix.dir }}/*.tgz
-          if-no-files-found: error
+          if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
   # 4. Python -> PyPI（优先 OIDC trusted publishing，PYPI_TOKEN 作为兜底）
@@ -406,20 +412,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - uses: actions/download-artifact@v8.0.2
+      # 某个 job 失败时对应 artifact 可能不存在，下载失败不应拖垮整个 Release。
+      - name: 下载构建产物（缺失则跳过）
+        uses: actions/download-artifact@v8.0.2
+        continue-on-error: true
         with:
           path: artifacts
 
       - name: 打包 dist 部署包
         shell: bash
         run: |
+          mkdir -p artifacts
           tar -czf "artifacts/oss-server-${{ needs.prepare.outputs.version }}-dist.tar.gz" dist
 
       - name: 生成 SHA256SUMS
         shell: bash
         working-directory: artifacts
         run: |
-          find . -type f ! -name SHA256SUMS -print0 | xargs -0 sha256sum > SHA256SUMS
+          # 只对实际存在的文件生成校验和；空目录时产出空文件，不让步骤失败。
+          find . -type f ! -name SHA256SUMS -print0 | xargs -0 -r sha256sum > SHA256SUMS
           cat SHA256SUMS
 
       - name: 写入各 job 结果
