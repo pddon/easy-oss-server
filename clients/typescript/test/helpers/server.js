@@ -153,6 +153,14 @@ function newestSourceMtime() {
 }
 
 function resolveBinary() {
+  // CI 可直接复用构建好的二进制（如 OSS_SERVER_BIN），跳过新鲜度检查与 cargo 构建。
+  const envBin = process.env.OSS_SERVER_BIN;
+  if (envBin) {
+    if (!fs.existsSync(envBin)) {
+      throw new Error(`OSS_SERVER_BIN 指向的文件不存在: ${envBin}`);
+    }
+    return { binary: envBin, source: 'env' };
+  }
   const sourceMtime = newestSourceMtime();
   const candidates = [
     {

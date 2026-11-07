@@ -186,12 +186,41 @@ jobs:
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
+  # 2.5 集成测试用服务端二进制（Windows）
+  #     只构建一次，npm 两条腿通过 artifact 复用，避免每条腿各编一遍。
+  # ---------------------------------------------------------------------------
+  server-bin:
+    name: 构建服务端二进制 / windows
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: server-bin-windows
+
+      - name: 构建 release 二进制
+        run: cargo build --release
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: oss-server-bin
+          path: target/release/oss-server.exe
+          if-no-files-found: error
+          retention-days: 3
+
+  # ---------------------------------------------------------------------------
   # 3. npm（JS + TS）-> registry.npmjs.org
-  #    测试脚本会构建并启动服务端，因此沿用 CI 的 windows-latest。
+  #    测试脚本会启动服务端；二进制由 server-bin 统一提供，不再各腿自行 cargo build。
   # ---------------------------------------------------------------------------
   npm:
     name: npm / ${{ matrix.pkg }}
-    needs: prepare
+    needs: [prepare, server-bin]
     runs-on: windows-latest
     permissions:
       contents: read
@@ -212,6 +241,17 @@ jobs:
         working-directory: clients/${{ matrix.dir }}
     steps:
       - uses: actions/checkout@v7.0.1
+
+      # server-bin 已在 needs 中成功产出并上传该 artifact，此处直接复用。
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: oss-server-bin
+          path: ${{ runner.temp }}/oss-server-bin
+
+      - name: 指定集成测试用服务端二进制
+        shell: pwsh
+        run: |
+          Add-Content -Path $env:GITHUB_ENV -Value "OSS_SERVER_BIN=$env:RUNNER_TEMP\oss-server-bin\oss-server.exe"
 
       - uses: actions/setup-node@v7.1.0
         with:
@@ -268,11 +308,22 @@ jobs:
         with:
           python-version: '3.10'
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: pypi-server-bin
+
       - name: 安装构建工具
         run: python -m pip install --quiet build twine
 
+      - name: 构建集成测试用服务端（复用 cargo 缓存）
+        run: cargo build --release
+
       - name: 测试
         working-directory: clients/python
+        env:
+          OSS_SERVER_BIN: ${{ github.workspace }}/target/release/oss-server
         run: python -m unittest discover -s tests -v
 
       - name: 构建 wheel + sdist
